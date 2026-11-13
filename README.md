@@ -1,342 +1,161 @@
+<!-- 產品／專案：HEShell（神盾殼／AEGIS FHE AI Wrapper with USB）｜法人／事業體：AEGIS（`aegis.expert`；正式法人名稱 [待確認]）｜日期：2026-11-13（Asia/Taipei）｜草稿 v0.4.6 -->
 # HEShell
 C2-AE-FAW 神盾殼 HEShell USB 硬體金鑰 + HE 防護 AI 介面殼層 for 資安敏感企業、法律與金融
-# HEShell (AEGIS FHE AI Wrapper with USB)
 
-> **倉庫識別碼**：`C3-AE-FAW-F` (`aegis-fhe-ai-wrapper-app`)  
-> **系統定位**：具備硬體金鑰邊界之同態加密（Homomorphic Encryption, HE）AI 路由殼層  
-> **維護團隊**：`team-aegis-fhe-ai-wrapper` (`dev-aegis-fhe-ai-wrapper-app@aegis.expert`)
+# HEShell（AEGIS FHE AI Wrapper with USB）
 
----
+> **倉儲識別碼**：`C3-AE-FAW-F`（`aegis-fhe-ai-wrapper-app`）  
+> **所屬法人／事業體**：AEGIS（`aegis.expert`）｜正式公司登記名稱 [待確認]
+> **系統定位**：具備 USB 硬體金鑰邊界之同態加密（HE）AI 路由殼層  
+> **維護團隊**：`team-aegis-fhe-ai-wrapper`（`dev-aegis-fhe-ai-wrapper-app@aegis.expert`）  
+> **文件狀態**：草稿 v0.4.6，待人工審核
 
-## 1. 產品定義與工程邊界
+## 1. 這是什麼（以及不是什麼）
 
-### 1.1 系統本質
-HEShell 是一套**客戶端安全殼層（Secure Client-Side Shell）與外部模型路由中繼**，本身**不訓練、不微調基礎語言模型**，亦**不實作底層同態加密密碼學基元（Cryptographic Primitives）**。其功能在於：
-1. 作為本機前端介面，接收使用者輸入。
-2. 透過已掛載的專用 USB 硬體邊界管理本次對話之秘密金鑰（Secret Key, $sk$）。
-3. 呼叫外部經認證的同態加密 API（HE Provider API）將明文編碼並加密為密文向量／多項式張量。
-4. 將密文與評估金鑰（Evaluation Key, $evk$ / Galois Keys / Relin Keys）送往宣告支援密文推論的端點，執行同態推論。
-5. 接收推論完成之密文結果，經 USB 驗證後於本機解密並即時渲染。
+HEShell 是客戶端安全殼層與外部模型路由中繼：
 
-```
-[本機使用者]
-     │ (明文，僅在 USB 掛載時存在記憶體)
-     ▼
-[HEShell 本機殼層] ◄─── (秘密金鑰 sk 永不出界) ───► [USB 安全硬體]
-     │
-     │ 呼叫本地/外掛 HE API 進行 Encrypt(sk, Prompt)
-     ▼
-[密文請求體 (Ciphertext)] + [評估金鑰 evk]
-     │ (網路上無明文、無反向還原能力)
-     ▼
-[端點路由器 (Router)]
-     │
-     ├── (L2 具能力端點) ──► [密文推論引擎] ──► [密文回應 (Ciphertext)]
-     └── (不支援端點) ──► 拒絕路由 (FAIL-CLOSED，嚴禁退回明文)
-```
+1. 作為本機前端介面接收使用者輸入。
+2. 自 HE Provider 取回一把加密私鑰，私鑰於本機當場組合為複合金鑰（Combined Key）後存放於專用 USB；HE Provider 不能接觸到這把私鑰（主 PMO 2026-11-13 答覆）。
+3. 於本機加密：先將金鑰組合成當前最新的加密金鑰，再以其加密使用者輸入；明文不送往外部 HE Provider（主 PMO 2026-11-13 答覆）。見 §6 B。
+4. 將密文與評估金鑰（evk / Galois / Relin Keys）送往已宣告密文能力之端點。
+5. 接收結果並顯示；**結果以明文回傳**（主 PMO 2026-11-13 補充答覆）。明文從不送往 HE Provider；HE Provider 不能接觸到這把私鑰。
 
-### 1.2 能力成熟度分級（Taxonomy）
-本專案嚴格遵守以下四級能力劃分，禁止向市場或工程團隊混稱能力等級：
+HEShell **不訓練、不微調**基礎語言模型，**不實作**底層同態加密密碼學基元。
 
-| 級別 | 定義 | 傳輸態 | 計算態 | v1 狀態與驗收標準 |
+密文智庫（EncryMind）將密文回傳至地端 SLM／LLM，為不同產品。
+
+斜槓一二三 v1 將整合 HEShell；整合方式與時程 [待確認]。
+
+> 與密文智庫文件之關係：HEShell 為已與該文件「S0 單向輸入加密架構（Legacy）」不同的改版，產品繼續預售；S0「嚴格廢棄」狀態不解除（主 PMO 2026-11-13 補充答覆）。HEShell 採 L0–L3 分級，不以 S0–S3 評級；S0 指架構類型，不指特定產品（主 PMO 2026-11-13 決定，方案 B）。
+
+## 2. 能力分級（禁止混稱）
+
+| 級別 | 定義 | 傳輸態 | 計算態 | v1 狀態 |
 | :--- | :--- | :--- | :--- | :--- |
-| **L0** | 傳輸層加密 (TLS 1.3 / HTTPS) | 密文 | 伺服器端明文解密 | **非本產品**。不列為隱私保護賣點。 |
-| **L1** | 指定 HE API 密文運算 | 密文 | 伺服器端純密文（固定 Circuit） | **本期交付**。支援特定 Embedding 比對、距離計算、數值評分與分類。 |
-| **L2** | 端點密文模型推論 (Encrypted Inference) | 密文 | 伺服器端純密文推論並回傳密文 | **條件交付**。僅限端點具備明確能力宣告時路由，非通用端點。 |
-| **L3** | 任意閉源 API 密文即時生成 | 密文 | 任意商用 LLM 直接解讀密文 | **非現行科技**。嚴禁承諾，不列入 v1 驗收與 Roadmap。 |
+| L0 | 傳輸層加密（TLS 1.3 / HTTPS） | 密文 | 伺服器端明文 | **非本產品**，不列為隱私賣點 |
+| L1 | 指定 HE API 密文運算 | 密文 | 純密文（固定電路） | **本期交付**：Embedding 比對、距離計算、數值評分與分類 |
+| L2 | 端點密文模型推論 | 密文 | 純密文推論並回傳密文 | **條件交付**：僅限具明確能力宣告之端點 |
+| L3 | 任意閉源 API 密文即時生成 | 密文 | 任意商用 LLM 直接解讀密文 | **非現行科技**：嚴禁承諾，不列入 v1 驗收與 Roadmap |
 
-### 1.3 延遲預期與非即時互動規格
-依據 2026 年公開密碼學與硬體加速研究，使用 CKKS 或 TFHE/FHEW 針對約 80 億參數（8B）模型執行端到端密文推論，相較於明文推論具有約 $10^4$（四個數量級）的運算代價：
-- 短序列（Prompt $\le 64$ tokens）推論延遲約落在 **數十秒至數分鐘** 級距。
-- 密文尺寸膨脹量：單一上下文狀態向量可能由數十 KB 膨脹為數十至數百 MB。
-- **介面規範**：HEShell 介面**嚴禁提供虛假的「逐字打字機串流（Token Streaming）」動態**；必須提供進度階段指示器（Phase Indicator：金鑰封裝中 $\rightarrow$ 密文傳輸中 $\rightarrow$ 密文同態運算中 $\rightarrow$ 密文下載中 $\rightarrow$ 本機解密驗證），明示批次等待時間。
+> 註：HEShell **結果以明文回傳**。上表 L2「純密文推論並回傳密文」為端點能力描述（README 原設計），對使用者呈現之結果為明文。此列表述是否改寫 [待確認]。密文智庫（EncryMind）將密文回傳至地端 SLM／LLM，為不同產品。
 
----
+## 3. 延遲預期與介面規範
 
-## 2. 模組架構切分
+研究引用（非本產品 SLA；出處 [待確認]）：README 原稿依「2026 年公開密碼學與硬體加速研究」記載，以 CKKS 或 TFHE/FHEW 對約 8B 參數模型做端到端密文推論，相較明文約有 10^4 量級運算代價；短序列（≤ 64 tokens）延遲約數十秒至數分鐘；單一上下文狀態向量可能由數十 KB 膨脹至數十至數百 MB。
 
-本倉庫採嚴格模組化架構，以避免記憶體跨層洩漏明文：
+介面規範：
 
-```
-heshell-core/
-├── apps/
-│   └── desktop-ui/            # 前端桌面殼層 (Tauri/Rust + 安全渲染)
-├── packages/
-│   ├── usb-sentinel/          # USB 生命週期監控與硬體金鑰介面
-│   ├── he-client-sdk/         # 外部同態加密 API 消費端 (抽象介面)
-│   ├── zero-leak-router/      # 密文端點路由決策器 (Capability Matcher)
-│   ├── secure-mem/            # 防交換 (mlock)、敏感字串即時覆寫工具
-│   └── sanitized-logger/      # 零明文稽核日誌與崩潰處理器
-```
+- **嚴禁虛假的逐字打字機串流（Token Streaming）**。
+- 必須提供階段指示器：金鑰封裝中 → 密文傳輸中 → 密文同態運算中 → 接收結果，並明示批次等待時間。（原設計為「…密文下載中 → 本機解密驗證」；結果以明文回傳，階段名稱是否再調整 [待確認]）
 
-### 模組權責表
+## 4. 模組架構
 
-| 模組名稱 | 權責邊界 | 嚴格禁止事項 |
+    heshell-core/
+    ├── apps/
+    │   └── desktop-ui/          # 桌面殼層（Tauri/Rust + 安全渲染）
+    └── packages/
+        ├── usb-sentinel/        # USB 生命週期監控與硬體金鑰介面
+        ├── he-client-sdk/       # 外部 HE API 消費端（抽象介面）
+        ├── zero-leak-router/    # 密文端點路由決策器（Capability Matcher）
+        ├── secure-mem/          # mlock 防交換、敏感字串即時覆寫
+        └── sanitized-logger/    # 零明文稽核日誌與崩潰處理
+
+| 模組 | 權責 | 嚴格禁止 |
 | :--- | :--- | :--- |
-| `usb-sentinel` | 偵測 USB 拔插事件、挑戰應答、對話 Session Key 配對。 | 禁止將 Secret Key 導出至未保護的堆積記憶體（Heap）；禁止雲端備份。 |
-| `secure-mem` | 管理明文展示緩衝區，使用 `mlock` 鎖定記憶體，拔除時執行 `memset_s`。 | 禁止將明文寫入 OS Pagefile/Swap；禁止常規垃圾回收延遲釋放。 |
-| `he-client-sdk` | 封裝外部 HE API，送出明文編碼要求並接回密文，或接收本機金鑰完成封裝。 | 禁止內嵌不符合標準之自製密碼原語；失敗時禁止降級為明文。 |
-| `zero-leak-router`| 檢查遠端端點之 Capability Manifest；若非 L1/L2 支援則阻斷。 | 禁止向未宣告能力之端點送出任何對話封包；禁止「改送明文後備」。 |
-| `sanitized-logger`| 記錄連線延遲、密文字節數、錯誤代碼、金鑰識別雜湊（Key ID Hash）。 | 禁止將 Prompt、回覆原文、非對稱私鑰字串寫入 Log 或 Crash Dump。 |
+| `usb-sentinel` | USB 拔插偵測、挑戰應答、Session Key 配對；存放複合金鑰（Combined Key） | 私鑰導出至未保護 Heap；雲端備份 |
+| `secure-mem` | 明文展示緩衝區 mlock；拔除時 memset_s | 明文寫入 Pagefile/Swap；延遲釋放 |
+| `he-client-sdk` | 封裝 HE API；自 HE Provider 取回加密私鑰，於本機進行加密（不送明文至 HE Provider） | 自製密碼原語；失敗時降級明文；送出明文至 HE Provider |
+| `zero-leak-router` | 檢查端點 Capability Manifest；非 L1/L2 阻斷 | 對未宣告能力端點送封包；明文後備 |
+| `sanitized-logger` | 記錄延遲、密文位元組數、錯誤碼、Key ID Hash | Prompt、回覆原文、私鑰寫入 Log 或 Crash Dump |
 
----
+## 5. USB 狀態機
 
-## 3. USB 狀態機與生命週期規範
+    DISCONNECTED → ATTACHED_IDLE → SESSION_ACTIVE → DECRYPTING → DISPLAYING_PLAINTEXT
+          ▲                                                               │
+          └──────────────────── 任意狀態：USB 拔除 ─────────────────────────┘
 
-解密金鑰嚴格受限於 USB 物理硬體邊界。本機殼層實作以下狀態機：
+（結果以明文回傳；原設計狀態名 `DECRYPTING` 是否調整 [待確認]。）
 
-```
-      [ 0. DISCONNECTED ] ◄──────────────────────────────────┐
-               │                                             │
-               │ (USB 插入 & 握手成功)                         │
-               ▼                                             │
-      [ 1. ATTACHED_IDLE ]                                   │
-               │                                             │
-               │ (發起對話: 生成 Session Key & 註冊)          │ (USB 拔除事件觸發)
-               ▼                                             │
-      [ 2. SESSION_ACTIVE ]                                  │
-               │                                             │
-               │ (推論完成密文回傳: 請求解密)                  │
-               ▼                                             │
-      [ 3. DECRYPTING ]                                      │
-               │                                             │
-               │ (解密成功: 明文渲染至畫面)                   │
-               ▼                                             │
-      [ 4. DISPLAYING_PLAINTEXT ] ───────────────────────────┘
-```
+USB 拔除（緊急阻斷）：
 
-### 狀態移轉與安全動作定義
+1. 立即中止網路傳輸與解密運算
+2. GUI 以空白填滿，抹除畫面明文
+3. 對明文、對話快取、中介變數緩衝區零值抹寫（Zeroize / memset_s）
+4. 銷毀通往該 USB 的 Context Handle
+5. 禁止自磁碟快取或暫存區還原明文
 
-1. **DISCONNECTED $\rightarrow$ ATTACHED_IDLE**：
-   - 殼層偵測到裝置插入，執行硬體憑證與非對稱挑戰握手。
-   - 驗證成功後，系統允許建立新的對話 Session。此時記憶體中無任何對話金鑰。
-2. **ATTACHED_IDLE $\rightarrow$ SESSION_ACTIVE**：
-   - 針對該次對話生成 Session Key Identifier ($SessionID$)。
-   - USB 端點生成或導出該次對話專用之密鑰對：秘密金鑰 $sk$ 留存於 USB 本地邊界，評估金鑰 $evk$ 與公開金鑰 $pk$ 提供給殼層。
-3. **SESSION_ACTIVE $\rightarrow$ DECRYPTING**：
-   - 接收到來自 L2 雲端推論之結果密文 $C_{out}$。
-   - 殼層將 $C_{out}$ 送交 USB 驅動邊界或本地受限環境，以 $sk$ 執行解密。
-4. **DECRYPTING $\rightarrow$ DISPLAYING_PLAINTEXT**：
-   - 密文解密為明文字串，存放於受 `mlock` 保護之隔離記憶體緩衝區中，直接映射至畫面。
-5. **任意狀態 $\rightarrow$ DISCONNECTED（緊急阻斷程序）**：
-   - **觸發條件**：USB 中斷連線（中斷信號延遲不得超過 50 毫秒）。
-   - **強制連鎖反應**：
-     1. **中斷執行**：立即中止正在進行中的網路傳輸與解密運算。
-     2. **清除畫面**：GUI 視窗立刻以空白填滿，抹除畫面上之對話明文。
-     3. **抹除記憶體**：對所有存放明文、對話快取、中介變數之緩衝區執行零值抹寫（Zeroize / `memset_s`）。
-     4. **銷毀金鑰句柄**：本機端銷毀所有通往該 USB 的 Context Handle。
-     5. **禁止回退**：嚴禁自磁碟快取或系統暫存區還原剛才對話之明文。
+工程門檻：中斷信號延遲與白屏／抹寫完成 ≤ 50 ms（驗收門檻，對外承諾 [待確認]）。
 
----
+金鑰位置：依主 PMO 2026-11-13 答覆，「HE Provider 是取用一把加密私鑰，透過在本機加密之後，然後產生的私鑰組合再放到 USB 裡，所以其實是 Combined Key 的概念。」補充答覆：私鑰於本機當場組合為複合金鑰後存放於 USB；HE Provider 不能接觸到這把私鑰。即私鑰非由 USB 生成。不經上傳、不做雲端備份：對外傳輸的是複合金鑰的組件，而非使用者 AI 提問的文字。USB 位於虛擬機的 USB 埠；使用者可自行備份 USB，但遺失不補發。不做雲端備份。
 
-## 4. HE API 介面契約 (API Specification)
+## 6. HE API 介面契約
 
-殼層不自行實作密碼原語，完全依循此介面契約消費外部 HE 服務或本機 HE 模組。
+殼層不自行實作密碼原語，依下列契約消費外部 HE 服務或本機 HE 模組（欄位值皆為示例）：
 
-### 4.1 端點合約定義
+- A. `POST /v1/he/session/init`：建立會話（scheme、params、client_id）；回傳 session_id、public_key_ref、所需評估金鑰。自 HE Provider 取回加密私鑰是否經此 API 及其欄位 [待確認]。
+- B. 本機加密：自 HE Provider 取回一把加密私鑰，私鑰於本機當場組合為複合金鑰（Combined Key）後存放於 USB；先將金鑰組合成當前最新的加密金鑰，再以其加密使用者輸入；明文不送往外部 HE Provider；HE Provider 不能接觸到這把私鑰（主 PMO 2026-11-13 答覆）。
+- C. `POST /v1/he/inference/dispatch`：送出密文、評估金鑰、`target_model_capability`、`max_computation_depth`；回傳 task_id 與 `estimated_latency_sec`（範例值，非承諾）。
+- D. `GET /v1/he/inference/result/{task_id}`：取回密文結果、consumed_depth、proof_of_execution。
+- E. 本機解密：README 原設計為僅 USB 在位時執行、USB 離線則硬體拒絕並拋錯；依主 PMO 2026-11-13 補充答覆結果以明文回傳，本步驟及 D 之「取回密文結果」如何調整 [待確認]。
 
-#### A. 建立會話金鑰 (Session Key Initialization)
-- **Method**: `POST /v1/he/session/init`
-- **Request Body**:
-  ```json
-  {
-    "scheme": "CKKS",
-    "params": {
-      "poly_modulus_degree": 32768,
-      "scale_bits": 40,
-      "security_level": "HEStd_128_classic"
-    },
-    "client_id": "heshell-node-a18f"
-  }
-  ```
-- **Response Body**:
-  ```json
-  {
-    "session_id": "sess_01J9X8K...",
-    "public_key_ref": "pk_01J9X8K...",
-    "eval_key_required": ["relin_keys", "galois_keys"],
-    "created_at": 1791628800
-  }
-  ```
-- **說明**：秘密金鑰 $sk$ 由本機 USB 生成，永遠不透過此 API 上傳。
+錯誤碼：
 
-#### B. 密文封裝/加密 (Client Ciphertext Package)
-- **說明**：此步驟由本機 USB 驅動搭配本機 HE Client Engine 執行，不經過遠端未受信任伺服器。
-- **輸入**：明文 Prompt、Schema 標註。
-- **輸出結構**：
-  ```json
-  {
-    "session_id": "sess_01J9X8K...",
-    "format": "CKKS_PACKED_V1",
-    "num_slots": 16384,
-    "ciphertext_payload": "BASE64_ENCODED_CIPHERTEXT_BLOB...",
-    "digest_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-  }
-  ```
-
-#### C. 密文請求轉送 (Encrypted Inference Dispatch)
-- **Method**: `POST /v1/he/inference/dispatch`
-- **Request Body**:
-  ```json
-  {
-    "session_id": "sess_01J9X8K...",
-    "target_model_capability": "HE_LLM_L2",
-    "ciphertext_payload": "BASE64_ENCODED_CIPHERTEXT_BLOB...",
-    "eval_keys": {
-      "relin_key": "BASE64_ENCODED_EVAL_KEY...",
-      "galois_keys": "BASE64_ENCODED_GALOIS_KEYS..."
-    },
-    "max_computation_depth": 14
-  }
-  ```
-- **Response Body**:
-  ```json
-  {
-    "task_id": "task_he_01J9X8M...",
-    "status": "PROCESSING",
-    "estimated_latency_sec": 45
-  }
-  ```
-
-#### D. 密文結果輪詢與接收 (Fetch Result)
-- **Method**: `GET /v1/he/inference/result/{task_id}`
-- **Response Body (COMPLETED)**:
-  ```json
-  {
-    "task_id": "task_he_01J9X8M...",
-    "status": "COMPLETED",
-    "ciphertext_result": "BASE64_ENCODED_RESULT_CIPHERTEXT_BLOB...",
-    "consumed_depth": 12,
-    "proof_of_execution": "SIG_RSA_SHA256_..."
-  }
-  ```
-
-#### E. 解密 (Local Decrypt)
-- **說明**：嚴格於本機且 USB 在位時呼叫本地安全模組執行。
-- **輸入**：$sk$ (來自 USB 授權通道)、`ciphertext_result`。
-- **輸出**：明文 Tokens。若 USB 已離線，解密呼叫立即遭硬體拒絕並拋錯。
-
-### 4.2 標準錯誤碼規範
-
-| 錯誤碼 | 符號常數 | 觸發情境與系統行為 |
+| 錯誤碼 | 常數 | 行為 |
 | :--- | :--- | :--- |
-| `HE_001` | `ERR_USB_MISSING` | 未偵測到 USB 或硬體授權失效。立即停止連線，清空工作區。 |
-| `HE_002` | `ERR_CAPABILITY_UNSUPPORTED`| 目標端點未宣告 L1/L2 能力。**主動熔斷，嚴禁降級送出明文**。 |
-| `HE_003` | `ERR_PLAINTEXT_LEAK_GUARD` | 檢驗模組偵測到輸出管道包含非密文格式數據。核心硬中斷退出。 |
-| `HE_004` | `ERR_SESSION_MISMATCH` | 密文對話關聯之 Session Key ID 與當前掛載 USB 不相符。拒絕解密。 |
-| `HE_005` | `ERR_CIPHERTEXT_CORRUPTED` | 密文雜湊校驗錯誤或同態深度耗盡（Noise Budget 溢出）。推論失敗。 |
-| `HE_006` | `ERR_USB_PREMATURE_EJECT` | 運算或解密進行途中 USB 遭移除。拋出例外，執行全域記憶體洗刷。 |
+| HE_001 | ERR_USB_MISSING | 停止連線，清空工作區 |
+| HE_002 | ERR_CAPABILITY_UNSUPPORTED | 主動熔斷，嚴禁降級送出明文 |
+| HE_003 | ERR_PLAINTEXT_LEAK_GUARD | 輸出管道含非密文資料，硬中斷 |
+| HE_004 | ERR_SESSION_MISMATCH | Session Key ID 不符，拒絕解密 |
+| HE_005 | ERR_CIPHERTEXT_CORRUPTED | 雜湊錯誤或噪聲預算耗盡，推論失敗 |
+| HE_006 | ERR_USB_PREMATURE_EJECT | 途中拔除，全域記憶體洗刷 |
+
+## 7. 路由規則（FAIL-CLOSED）
+
+1. **絕不自動降級**：端點不支援密文推論時，不提供「改以明文發送？」選項，請求直接無效。
+2. **能力宣告白名單**：端點須提供經伺服器私鑰簽章之 Capability Manifest，載明支援方案（CKKS / BFV / TFHE）、最高乘法深度、密文 I/O 支援證明。
+3. **明文審查閘門**：出境 Payload 若非標準密文結構或含自然語言明文字元，Socket 立即關閉。
+
+## 8. 威脅模型摘要
+
+可信任邊界：本機 USB 安全硬體、受 mlock 保護之 HEShell 核心程序。  
+不可信任：宿主 OS 其他程序與 Swap、公共網路與代理、遠端推論伺服器、雲端日誌與計費端點。
+
+| 編號 | 威脅 | 緩解 |
+| :--- | :--- | :--- |
+| TM-01 | 惡意伺服器竊聽 | 明文輸入不送往 HE Provider；送出之輸入為 HE 密文；結果以明文回傳；HE Provider 不能接觸到這把私鑰（主 PMO 2026-11-13 答覆）；伺服器端不持有解密金鑰（使用者 2026-11-13 22:20 指示已核准對外使用） |
+| TM-02 | 拔除後殘留明文 | 拔除即 memset_s、白屏、無磁碟明文快取 |
+| TM-03 | Swap/Pagefile 洩漏 | mlock / VirtualLock |
+| TM-04 | 日誌與 Crash Dump 外洩 | 僅數值指標；封鎖 Full Memory Dump |
+| TM-05 | 評估金鑰逆向 | 依 HE 標準參數（至少 128-bit 經典安全強度） |
+| TM-06 | 中間人偽造能力宣告誘導降級 | 強制 FAIL-CLOSED，無明文回退路徑 |
+
+## 9. 開發里程碑與驗收
+
+里程碑（內部排程，非對外交期）：M1 硬體金鑰介面與安全記憶體 → M2 外部 HE API 整合 → M3 零洩漏路由器與 UI 狀態機 → M4 端到端密文推論整合與故障驗收。
+
+本專案不以「串接任一公有 API 並秒回文字」作為驗收標準。驗收 Gate：
+
+1. 金鑰邊界：拔除 USB 時解密回 HE_001，畫面與記憶體無明文；出境封包不含 sk。
+2. 出境明文清零：封包捕獲不得出現任何自然語言片段。
+3. 非相容端點中斷：路由至一般商用 LLM（L0）必須回 HE_002，嚴禁以明文降級成功。
+4. 拔除白屏與抹寫：≤ 50 ms 白屏並 memset_s；Dump 檢查明文命中數為 0。
+5. 日誌審計：執行紀錄、Crash Dump、路由追蹤檔明文出現率 0%。
+
+## 10. 聯絡
+
+- Dev：`dev-aegis-fhe-ai-wrapper-app@aegis.expert`
+- 資安通報窗口 [待確認]
 
 ---
 
-## 5. 路由規則引擎 (Routing Rules Engine)
+## 變更註記（v0.4.6，2026-11-13，Asia/Taipei）
 
-路由器 (`zero-leak-router`) 必須嚴格遵從 **Fail-Closed（防護性關閉）** 原則。
+依使用者 2026-11-13 22:20 指示，依預售草稿現行事實改寫本 README：結果以明文回傳；明文不送往 HE Provider；HE Provider 不能接觸到私鑰；金鑰流程為複合金鑰（Combined Key），組件於本機組合成當前最新金鑰後再加密使用者輸入；提問不經上傳、不做雲端備份（對外傳輸的是複合金鑰組件，不是提問文字）；USB 位於虛擬機的 USB 埠，可自行備份，遺失不補發；密文智庫（EncryMind）為不同產品（密文回傳至地端 SLM／LLM）；斜槓一二三 v1 將整合 HEShell（方式與時程 [待確認]）。本文件為草稿，尚未最終確認。
 
-```
-                    [ 使用者送出請求 ]
-                           │
-                           ▼
-                  [ 檢查 USB 是否在位? ]
-                  ├── 否 ──► 終止 (代碼 HE_001)
-                  │
-                  ▼ 是
-             [ 查詢目標端點 Capability ]
-                           │
-      ┌────────────────────┴────────────────────┐
-      ▼                                         ▼
-[ 宣告具備 L1/L2 能力 ]                 [ 未宣告 / 僅支援明文 (L0) ]
-      │                                         │
-      ▼                                         ▼
-[ 呼叫 HE API 本機加密 ]               [ 拒絕路由 (代碼 HE_002) ]
-      │                                    [ 終止傳輸 ]
-      ▼                                (嚴禁回退至明文 API)
-[ 送出密文推論請求 ]
-```
+### 人工審核清單
 
-### 路由不變量（Routing Invariants）
-1. **絕不自動降級**：當目標端點不支援密文同態推論時，路由器**不得提供**「是否改以標準明文 API 發送？」的選項；該請求必須被直接宣告為無效。
-2. **能力宣告白名單檢驗**：端點必須提供經伺服器私鑰簽章之 Capability Manifest，且必須明記：
-   - 支援方案：`CKKS` / `BFV` / `TFHE`
-   - 最高乘法深度能力（Multiplicative Depth Capable）
-   - 密文輸入輸出支援證明
-3. **明文審查閘門**：出境封包發送前，由位址檢查器確認 Payload 內容。若無法識別為標準密文二進位結構或包含 ASCII/UTF-8 自然語言明文字元，該 Socket 即刻強制關閉。
-
----
-
-## 6. 威脅模型 (Threat Model)
-
-### 6.1 系統邊界與信任假設
-
-```
-[可信任邊界 (TCB)]
-┌──────────────────────────────────────────────┐
-│  - 本機實體 USB 安全硬體                      │
-│  - HEShell 受 mlock 保障之客戶端核心程序      │
-└──────────────────────────────────────────────┘
-                       ▲
-                       │ (受監控之本機介面)
-                       ▼
-[不可信任環境 (Untrusted)]
-┌──────────────────────────────────────────────┐
-│  - 宿主作業系統其他程序 / Pagefile / Swap    │
-│  - 公共網路 / 代理伺服器                     │
-│  - 遠端推論伺服器 (Untrusted Compute Server) │
-│  - 雲端日誌系統與第三者計費端點              │
-└──────────────────────────────────────────────┘
-```
-
-### 6.2 威脅情境與緩解措施
-
-| 威脅編號 | 威脅情境 (Threat Vector) | 嚴重度 | 緩解措施 (Mitigations) |
-| :--- | :--- | :---: | :--- |
-| **TM-01** | **惡意伺服器端竊聽對話內容**：運算節點具備惡意，試圖查看使用者輸入之機密資料。 | 高 | 進入傳輸管道之對話完全為 HE 密文，伺服器僅持有評估金鑰（$evk$），密碼學保證無 $sk$ 絕對無法還原明文。 |
-| **TM-02** | **USB 拔除後殘留明文竊取**：使用者在公用或受限場所拔除 USB 後，本機遭人提取記憶體。 | 高 | 註冊作業系統底層硬體事件；拔除瞬間執行 `memset_s` 強制抹除明文，介面即刻白屏，無磁碟明文快取。 |
-| **TM-03** | **記憶體交換檔洩漏**：作業系統記憶體壓力過大，將對話明文寫入硬碟 Swap/Pagefile。 | 中 | 對話輸入輸出緩衝區全面配置虛擬鎖定（Linux: `mlock`, Windows: `VirtualLock`），強制禁止分頁寫入磁碟。 |
-| **TM-04** | **日誌與當機回報外洩**：系統 Crash 生成 Dump 或 Logger 寫入硬碟記錄檔。 | 高 | 自定義 Logger 管道；結構化 Log 僅允許數值型指標（Latency、Bytes）。Crash Handler 封鎖 Full Memory Dump，僅允許無狀態 Stack Trace。 |
-| **TM-05** | **評估金鑰逆向解密攻擊**：攻擊者意圖透過收集之 $evk$ 與輸出密文解算輸入明文。 | 低 | 嚴格依循同態加密國際標準（Homomorphic Encryption Standard）參數設定（至少 128-bit 經典安全強度），使逆向在計算上不可行。 |
-| **TM-06** | **中間人竄改能力宣告欺騙降級**：中間人攔截網路，偽造不支援密文之信號，誘騙殼層改送明文。 | 高 | 路由規則強制 Fail-Closed。遇到非密文回覆直接報錯中斷，不具備明文回退邏輯路徑。 |
-
----
-
-## 7. 開發里程碑與驗收標準 (Milestones & Acceptance)
-
-### 7.1 開發里程碑規劃
-
-```
-M1 (第 1-3 週)  ──► M2 (第 4-6 週)  ──► M3 (第 7-9 週)  ──► M4 (第 10-12 週)
-硬體金鑰介面與       外部 HE API 整合與     零洩漏路由器與       端到端密文推論整合
-本機安全記憶體       密文封裝測試           UI 狀態機實作       與故障驗收 (GA)
-```
-
-- **M1：硬體金鑰介面與本機安全記憶體**
-  - 完成 USB 插入/拔出監控守護程序。
-  - 完成 `secure-mem` 記憶體鎖定與即時覆寫機制（測試 50ms 內清空驗證）。
-- **M2：外部 HE API 整合與密文封裝測試**
-  - 串接外部 HE Provider API，完成 Session 建立與金鑰交換介面。
-  - 建立本機封裝 SDK，驗證密文產生正確性與參數結構合規性。
-- **M3：零洩漏路由器與 UI 狀態機實作**
-  - 實作桌面殼層介面，支援非即時進度指示（Phase Indicator）。
-  - 實作 `zero-leak-router`，驗證遇到 L0 端點時 100% 觸發阻斷中斷。
-- **M4：端到端密文推論整合與故障驗收**
-  - 連接已宣告支援密文計算之 L2 測試端點。
-  - 實施安全紅隊測試（USB 物理拔除、網路中間人攔截、記憶體傾印掃描）。
-
-### 7.2 嚴格驗收判準 (Definition of Done)
-
-本專案**不以「成功串接任一公有對話 API 並秒回文字」作為驗收標準**。驗收必須通過以下全部 Gate 檢查：
-
-1. **Gate 1：金鑰邊界不可侵犯性**
-   - 拔除 USB 狀態下發起解密請求，系統必須回傳 `ERR_USB_MISSING (HE_001)`，且畫面上與記憶體內均不得出現明文。
-   - 驗證任何網路出境封包，絕不包含秘密金鑰（$sk$）。
-2. **Gate 2：出境明文清零驗證**
-   - 於本機端網卡執行封包捕獲（Wireshark / eBPF Trace），檢查送往遠端之推論請求 Body。
-   - 請求必須為標準 Base64 密文或二進位 Payload；凡捕獲到任何自然語言文字片段，即判定為驗收失敗。
-3. **Gate 3：非相容端點強行中斷驗證**
-   - 將路由目標設定為標準公有商用 LLM 端點（L0）。
-   - 系統必須拒絕送出，並回傳 `ERR_CAPABILITY_UNSUPPORTED (HE_002)`；**嚴禁以「降級發送明文」使對話成功**。
-4. **Gate 4：緊急拔除白屏與記憶體抹寫測試**
-   - 於明文對話渲染完成後，隨機拔除 USB。
-   - 監控程序必須在 50ms 內完成畫面白屏，並對對話緩衝區實施 `memset_s`。透過外部 Dump 工具檢查記憶體，明文字串命中數必須為 0。
-5. **Gate 5：日誌安全審計**
-   - 檢索所有系統執行紀錄、崩潰傾印檔案（Crash Dump）與路由追蹤檔，明文出現率必須為 0%。
+- 結果以明文回傳後，L2「回傳密文」、API D／E、狀態機 `DECRYPTING` 與介面階段名稱如何調整，仍 [待確認]，請勿視為已決。
+- 取回之加密私鑰於組合時如何解鎖 [待確認]。
+- 斜槓一二三 v1 整合 HEShell 的方式與時程 [待確認]。
+- 50 ms 白屏門檻、資安通報窗口、正式法人名稱、對外中文正式名稱等既有 [待確認] 維持。
+- 未提供之效能數字、價格、交期與合規不得視為已確認。
