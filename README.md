@@ -1,4 +1,4 @@
-<!-- 產品／專案：HEShell（神盾殼／AEGIS FHE AI Wrapper with USB）｜法人／事業體：AEGIS（`aegis.expert`；正式法人名稱 [待確認]）｜日期：2026-11-14（Asia/Taipei）｜草稿 v0.4.8 -->
+<!-- 產品／專案：HEShell（神盾殼／AEGIS FHE AI Wrapper with USB）｜法人／事業體：AEGIS（`aegis.expert`；正式法人名稱 [待確認]）｜日期：2026-11-14（Asia/Taipei）｜草稿 v0.4.9 -->
 # HEShell
 C2-AE-FAW 神盾殼 HEShell USB 硬體金鑰 + HE 防護 AI 介面殼層 for 資安敏感企業、法律與金融
 
@@ -8,7 +8,7 @@ C2-AE-FAW 神盾殼 HEShell USB 硬體金鑰 + HE 防護 AI 介面殼層 for 資
 > **所屬法人／事業體**：AEGIS（`aegis.expert`）｜正式公司登記名稱 [待確認]
 > **系統定位**：具備 USB 硬體金鑰邊界之同態加密（HE）AI 路由殼層  
 > **維護團隊**：`team-aegis-fhe-ai-wrapper`（`dev-aegis-fhe-ai-wrapper-app@aegis.expert`）  
-> **文件狀態**：草稿 v0.4.8，待人工審核
+> **文件狀態**：草稿 v0.4.9，待人工審核
 
 ## 1. 這是什麼（以及不是什麼）
 
@@ -38,10 +38,10 @@ HEShell **不訓練、不微調**基礎語言模型，**不實作**底層同態�
 | :--- | :--- | :--- | :--- | :--- |
 | L0 | 傳輸層加密（TLS 1.3 / HTTPS） | 密文 | 伺服器端明文 | **非本產品**，不列為隱私賣點 |
 | L1 | 指定 HE API 密文運算 | 密文 | 純密文（固定電路） | **本期交付**：Embedding 比對、距離計算、數值評分與分類 |
-| L2 | 端點密文模型推論 | 密文 | 純密文推論並回傳密文 | **條件交付**：僅限具明確能力宣告之端點 |
+| L2 | 端點密文模型推論 | 密文 | 端點密文推論，對使用者以明文回傳結果 | **條件交付**：僅限具明確能力宣告之端點 |
 | L3 | 任意閉源 API 密文即時生成 | 密文 | 任意商用 LLM 直接解讀密文 | **非現行科技**：嚴禁承諾，不列入 v1 驗收與 Roadmap |
 
-> 註：HEShell **結果以明文回傳**。上表 L2「純密文推論並回傳密文」為端點能力描述（README 原設計），對使用者呈現之結果為明文。此列表述是否改寫 [待確認]。密文智庫（EncryMind）將密文回傳至地端 SLM／LLM，為不同產品。
+> 註：HEShell **結果以明文回傳**。上表 L2 已改為「端點密文推論，對使用者以明文回傳結果」。密文智庫（EncryMind）將密文回傳至地端 SLM／LLM，為不同產品。
 
 ## 3. 延遲預期與介面規範
 
@@ -50,7 +50,7 @@ HEShell **不訓練、不微調**基礎語言模型，**不實作**底層同態�
 介面規範：
 
 - **嚴禁虛假的逐字打字機串流（Token Streaming）**。
-- 必須提供階段指示器：金鑰封裝中 → 密文傳輸中 → 密文同態運算中 → 接收結果，並明示批次等待時間。（原設計為「…密文下載中 → 本機解密驗證」；結果以明文回傳，階段名稱是否再調整 [待確認]）
+- 必須提供階段指示器：金鑰封裝中 → 密文傳輸中 → 密文同態運算中 → 接收結果，並明示批次等待時間。（已確認；使用者 2026-11-14 17:03 指示。歷史註記：原設計為「金鑰封裝中 → 密文傳輸中 → 密文同態運算中 → 密文下載中 → 本機解密驗證」。）
 
 ## 4. 模組架構
 
@@ -74,15 +74,14 @@ HEShell **不訓練、不微調**基礎語言模型，**不實作**底層同態�
 
 ## 5. USB 狀態機
 
-    DISCONNECTED → ATTACHED_IDLE → SESSION_ACTIVE → DECRYPTING → DISPLAYING_PLAINTEXT
+    DISCONNECTED → ATTACHED_IDLE → SESSION_ACTIVE → RECEIVING_RESULT → DISPLAYING_PLAINTEXT
           ▲                                                               │
           └──────────────────── 任意狀態：USB 拔除 ─────────────────────────┘
 
-（結果以明文回傳；原設計狀態名 `DECRYPTING` 是否調整 [待確認]。）
 
 USB 拔除（緊急阻斷）：
 
-1. 立即中止網路傳輸與解密運算
+1. 立即中止傳輸與運算
 2. GUI 以空白填滿，抹除畫面明文
 3. 對明文、對話快取、中介變數緩衝區零值抹寫（Zeroize / memset_s）
 4. 銷毀通往該 USB 的 Context Handle
@@ -99,8 +98,8 @@ USB 拔除（緊急阻斷）：
 - A. `POST /v1/he/session/init`：建立會話（scheme、params、client_id）；回傳 session_id、public_key_ref、所需評估金鑰。自 HE Provider 取回加密私鑰是否經此 API 及其欄位 [待確認]。
 - B. 本機加密：自 HE Provider 取回一把加密私鑰，私鑰於本機當場組合為複合金鑰（Combined Key）後存放於 USB；先將金鑰組合成當前最新的加密金鑰，再以其加密使用者輸入；明文不送往外部 HE Provider；HE Provider 不能接觸到這把私鑰（主 PMO 2026-11-13 答覆）。
 - C. `POST /v1/he/inference/dispatch`：送出密文、評估金鑰、`target_model_capability`、`max_computation_depth`；回傳 task_id 與 `estimated_latency_sec`（範例值，非承諾）。
-- D. `GET /v1/he/inference/result/{task_id}`：取回密文結果、consumed_depth、proof_of_execution。
-- E. 本機解密：README 原設計為僅 USB 在位時執行、USB 離線則硬體拒絕並拋錯；依主 PMO 2026-11-13 補充答覆結果以明文回傳，本步驟及 D 之「取回密文結果」如何調整 [待確認]。
+- D. `GET /v1/he/inference/result/{task_id}`：取回結果（以明文回傳）、consumed_depth、proof_of_execution。
+- 明文結果由哪一端產生（技術流程）[待確認]。不自行補寫技術流程。
 
 錯誤碼：
 
@@ -109,7 +108,7 @@ USB 拔除（緊急阻斷）：
 | HE_001 | ERR_USB_MISSING | 停止連線，清空工作區 |
 | HE_002 | ERR_CAPABILITY_UNSUPPORTED | 主動熔斷，嚴禁降級送出明文 |
 | HE_003 | ERR_PLAINTEXT_LEAK_GUARD | 輸出管道含非密文資料，硬中斷 |
-| HE_004 | ERR_SESSION_MISMATCH | Session Key ID 不符，拒絕解密 |
+| HE_004 | ERR_SESSION_MISMATCH | Session Key ID 不符，拒絕連線 |
 | HE_005 | ERR_CIPHERTEXT_CORRUPTED | 雜湊錯誤或噪聲預算耗盡，推論失敗 |
 | HE_006 | ERR_USB_PREMATURE_EJECT | 途中拔除，全域記憶體洗刷 |
 
@@ -139,7 +138,7 @@ USB 拔除（緊急阻斷）：
 
 本專案不以「串接任一公有 API 並秒回文字」作為驗收標準。驗收 Gate：
 
-1. 金鑰邊界：拔除 USB 時解密回 HE_001，畫面與記憶體無明文；出境封包不含 sk。
+1. 金鑰邊界：拔除 USB 時回 HE_001，畫面與記憶體無明文；出境封包不含 sk。
 2. 出境明文清零：封包捕獲不得出現任何自然語言片段。
 3. 非相容端點中斷：路由至一般商用 LLM（L0）必須回 HE_002，嚴禁以明文降級成功。
 4. 拔除白屏與抹寫：≤ 50 ms 白屏並 memset_s；Dump 檢查明文命中數為 0。
@@ -152,6 +151,10 @@ USB 拔除（緊急阻斷）：
 
 ---
 
+## 變更註記（v0.4.9，2026-11-14，Asia/Taipei）
+
+依使用者 2026-11-14 17:03 指示：「04 階段名稱照你擬的這套開草稿 PR，明文由哪一端產生標 [待確認]」。介面階段定為「金鑰封裝中 → 密文傳輸中 → 密文同態運算中 → 接收結果」（原五段僅作歷史註記）；狀態機 `DECRYPTING` 改為 `RECEIVING_RESULT`；API D 改為「取回結果（以明文回傳）」、刪除 E「本機解密」；L2 列改為「端點密文推論，對使用者以明文回傳結果」；拔除與 HE_004／驗收 Gate 之「解密」用詞已調整。明文結果由哪一端產生（技術流程）仍 [待確認]，不自行補寫。斜槓一二三整合方式與時程、2A／3A 是否搭配揭露句，維持 [待確認]。本文件為草稿，尚未最終確認。
+
 ## 變更註記（v0.4.8，2026-11-14，Asia/Taipei）
 
 依使用者 2026-11-14 14:56 選定 1B/2A/3A，將三句對外用語原文寫入本 README（S0 關係段、§1、§8 TM-01）。2A、3A 旁加註 [待確認] 是否需搭配揭露句「結果以明文回傳」由使用者決定，不自行加寫揭露句。複合金鑰流程 9 項細節仍 [待確認]，不結案。v0.4.7 僅改預售草稿，未改本 README。本文件為草稿，尚未最終確認。
@@ -162,7 +165,7 @@ USB 拔除（緊急阻斷）：
 
 ### 人工審核清單
 
-- 結果以明文回傳後，L2「回傳密文」、API D／E、狀態機 `DECRYPTING` 與介面階段名稱如何調整，仍 [待確認]，請勿視為已決。
+- 明文結果由哪一端產生（技術流程）[待確認]。不自行補寫技術流程。
 - 取回之加密私鑰於組合時如何解鎖 [待確認]。
 - 斜槓一二三 v1 整合 HEShell 的方式與時程 [待確認]。
 - 50 ms 白屏門檻、資安通報窗口、正式法人名稱、對外中文正式名稱等既有 [待確認] 維持。
