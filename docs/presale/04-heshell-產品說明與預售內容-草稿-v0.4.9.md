@@ -32,7 +32,7 @@ v0.4（2026-11-13，Asia/Taipei）：依主 PMO 2026-11-13 答覆（經視覺內
 
 v0.3（2026-11-11，Asia/Taipei）：依 t12u 修正斜槓兩法人獨立、與 AEGIS 無從屬及水月道場支持成立之關係；其餘內容不變；品牌與網域確認不視為核准。
 
-v0.2（2026-11-10）：依主 PMO 確認統一品牌名稱與官方網域為 斜槓一二三 / Slash123（slash1to3.com）、斜槓104 / Slash104（slash1ofours.com）、水月道場 / Wonderland Center（wonderland.center）；僅移除官方網域選擇的待確認標註，其餘待確認與內容維持草稿
+v0.2（2026-11-10）：依主 PMO 確認統一品牌名稱與官方網域為 斜槓一二三 / Slash123（slash1to3.com）、斜槓104 / Slash104（slash1ofours.com）、水月道場 / Wonderland Center（wonderland.ngo）；僅移除官方網域選擇的待確認標註，其餘待確認與內容維持草稿
 
 ---
 
